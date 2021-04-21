@@ -1,7 +1,7 @@
 project('BLOM', ['fortran', 'c'],
         version: '1.0.0',
         license: 'LGPL',
-        meson_version: '>= 0.54.0',
+        meson_version: '>= 0.56.0',
         default_options: ['warning_level=2'])
 
 # Setup additional flags for compilation
@@ -28,8 +28,26 @@ elif fcc.get_id() == 'intel'
                            '-init=snan,arrays', '-fpe0','-ftrapuv'],
                           language: 'fortran')
   endif
+elif fcc.get_id() == 'nvidia_hpc'
+  add_project_arguments(['-r8', '-byteswapio', '-Mflushz', '-mcmodel=medium',
+                         '-Kieee'],
+                        language: 'fortran')
+  if get_option('buildtype').startswith('debug')
+    add_project_arguments(['-g', '-traceback', '-Mbounds', '-Ktrap=fp',
+                           '-Mchkptr', '-Mchkstk'], language: 'fortran')
+  endif
 else
   warning('Unknown Fortran compiler ("' + fcc.get_id() + '"), no default flags specified')
+endif
+
+# Handle OpenACC directives
+if get_option('openacc')
+  if fcc.get_id() == 'nvidia_hpc'
+    add_project_arguments(['-acc=gpu,verystrict', '-gpu=flushz,lineinfo,managed',
+                           '-Minfo=accel'], language: 'fortran')
+  else
+    error('Cannot enable OpenACC directives with compiler: ' + fcc.get_id())
+  endif
 endif
 
 # Define global dependencies

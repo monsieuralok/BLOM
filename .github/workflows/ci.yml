@@ -2,8 +2,7 @@ name: Continuous Integration testing
 on: [push, pull_request]
 
 env:
-  # This version of Meson should be available as an EasyBuild on Fram and Betzy
-  MESON_VERSION: '0.55.1'
+  MESON_VERSION: '0.57.2'
 jobs:
   build:
     name: Build BLOM on Github provided OS
@@ -17,8 +16,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          ref: meson
 
       - name: Setup Python for newer version of Meson
         uses: actions/setup-python@v2
@@ -102,3 +99,33 @@ jobs:
         run: |
           source /opt/intel/oneapi/setvars.sh
           meson compile -C builddir
+
+  nvhpc:
+    name: Build BLOM using Nvidia HPC SDK
+    runs-on: ubuntu-latest
+    container: nvcr.io/nvidia/nvhpc:21.2-devel-cuda_multi-ubuntu20.04
+    strategy:
+      matrix:
+        openacc: [true, false]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python for newer version of Meson
+        uses: actions/setup-python@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libnetcdff-dev
+
+      - name: Run Meson build step
+        uses: BSFishy/meson-build@v1.0.2
+        env:
+          CC: nvc
+          FC: nvfortran
+        with:
+          action: build
+          directory: builddir
+          setup-options: -Dopenacc=${{ matrix.openacc }}
+          meson-version: ${{ env.MESON_VERSION }}

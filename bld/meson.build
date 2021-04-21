@@ -1,6 +1,6 @@
 # Generate 'dimensions.F' based on desired grid and processor count
 blom_dims = find_program('blom_dimensions')
-patch_path = meson.source_root() / 'bld' / get_option('grid')
+patch_path = meson.project_source_root() / 'bld' / get_option('grid')
 kdm_path = get_option('grid') / 'kdm'
 # More systems which support 'cat' can be added here, once tested
 if host_machine.system() in ['linux', 'darwin']
