@@ -2,8 +2,7 @@ name: Continuous Integration testing
 on: [push, pull_request]
 
 env:
-  # This version of Meson should be available as an EasyBuild on Fram and Betzy
-  MESON_VERSION: '0.55.1'
+  MESON_VERSION: '0.57.2'
 jobs:
   build:
     name: Build BLOM on Github provided OS
@@ -119,3 +118,79 @@ jobs:
           source /opt/intel/oneapi/setvars.sh
           meson setup builddir -Dmpi=${{ matrix.mpi }}
           meson compile -C builddir
+
+  nvhpc:
+    name: Build BLOM using Nvidia HPC SDK
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        openacc: [true, false]
+    env:
+      CC: nvc
+      FC: nvfortran
+      NVCOMPILERS: '/opt/nvidia/hpc_sdk'
+      NFDIR: '/opt/netcdf'
+    steps:
+      - name: Setup environment
+        run: |
+          echo "${NVCOMPILERS}/Linux_x86_64/21.3/compilers/bin" >> $GITHUB_PATH
+          echo "${NFDIR}/bin" >> $GITHUB_PATH
+          echo "PKG_CONFIG_PATH=${NFDIR}/lib/pkgconfig" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libnetcdf-dev
+
+      - name: Cache Nvidia setup
+        id: cache-nvidia
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.NVCOMPILERS }}
+          key: nvhpc-${{ runner.os }}-21.3
+
+      - name: Setup NVHPC
+        if: steps.cache-nvidia.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-21-3_21.3_amd64.deb\
+            https://developer.download.nvidia.com/hpc-sdk/21.3/nvhpc-2021_21.3_amd64.deb
+          sudo apt install ./nvhpc-21-3_21.3_amd64.deb ./nvhpc-2021_21.3_amd64.deb
+
+      - name: Cache netCDF install
+        id: cache-netcdf
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.NFDIR }}
+          key: netcdff-4.5.2-${{ runner.os }}-nvhpc
+
+      - name: Checkout netCDF-Fortran
+        if: steps.cache-netcdf.outputs.cache-hit != 'true'
+        uses: actions/checkout@v2
+        with:
+          repository: 'Unidata/netcdf-fortran'
+          ref: 'v4.5.2'
+          path: 'netcdf-fortran'
+
+      - name: Compile and install custom netCDF-Fortran
+        if: steps.cache-netcdf.outputs.cache-hit != 'true'
+        run: |
+          ./configure --prefix="$NFDIR"
+          make
+          sudo make install
+        working-directory: 'netcdf-fortran'
+        env:
+          FCFLAGS: -fPIC
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python for newer version of Meson
+        uses: actions/setup-python@v2
+
+      - name: Run Meson build step
+        uses: BSFishy/meson-build@v1.0.2
+        with:
+          action: build
+          directory: builddir
+          setup-options: -Dopenacc=${{ matrix.openacc }}
+          meson-version: ${{ env.MESON_VERSION }}

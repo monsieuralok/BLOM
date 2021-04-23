@@ -34,3 +34,5 @@ option('mpi', type: 'boolean',
        description: 'Enable MPI work sharing', value: false)
 option('parallel_netcdf', type: 'boolean',
        description: 'Enable parallel version of NetCDF', value: false)
+option('openacc', type: 'boolean',
+       description: 'Enable OpenACC directives', value: false)
