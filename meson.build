@@ -28,6 +28,9 @@ elif fcc.get_id() == 'intel'
                            '-init=snan,arrays', '-fpe0','-ftrapuv'],
                           language: 'fortran')
   endif
+  if get_option('processors') == 1 and get_option('grid') == 'channel'
+    add_project_arguments('-mcmodel=medium', language: 'fortran')
+  endif
 elif fcc.get_id() == 'nvidia_hpc'
   add_project_arguments(['-r8', '-byteswapio', '-Mflushz', '-mcmodel=medium',
                          '-Kieee'],
@@ -77,6 +80,7 @@ subdir('drivers')
 subdir('ben02')
 subdir('cesm')
 subdir('fuk95')
+subdir('channel')
 subdir('single_column')
 
 # Handle options and add necessary flags and subfolders with source files
