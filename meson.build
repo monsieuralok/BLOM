@@ -48,8 +48,10 @@ if get_option('openacc')
   if fcc.get_id() == 'nvidia_hpc'
     add_project_arguments(['-acc=gpu,verystrict', '-gpu=flushz,managed',
                            '-Minfo=accel'], language: 'fortran')
+    add_project_link_arguments(['-acc=gpu,verystrict', '-gpu=flushz,managed',
+                                '-Minfo=accel'], language: 'fortran')
   else
-    error('Cannot enable OpenACC directives with compiler: ' + fcc.get_id())
+    error('Compiler "' + fcc.get_id() + '" is not supported yet with OpenACC')
   endif
 endif
 
