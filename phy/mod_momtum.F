@@ -25,6 +25,9 @@ c --- This module contains variables and procedures related to time
 c --- integration of the baroclinic momentum equation.
 c --- ------------------------------------------------------------------
 c
+#ifdef _OPENACC
+      use openacc
+#endif
       use mod_types, only: r8
       use mod_constants, only: g, alpha0, epsil, spval, onem, onemm
       use mod_time, only: delt1, dlt
@@ -108,6 +111,7 @@ c --- Private procedures.
 c --- ------------------------------------------------------------------
 c
       pure real(r8) function hfharm(a,b)
+!$acc routine
 c
 c --- ------------------------------------------------------------------
 c --- Harmonic average divided by 2.
@@ -130,7 +134,8 @@ c --- Initialize arrays.
 c --- ------------------------------------------------------------------
 c
       integer :: i,j,k,l
-c
+!$acc data create(absvor,dpvor,defor1,defor2,uja,ujb,via,vib)
+!$acc parallel loop private(k,i,j)
 c$OMP PARALLEL DO PRIVATE(k,i)
       do j=1-nbdy,jj+nbdy
         do k=1,2*kk
@@ -149,7 +154,9 @@ c$OMP PARALLEL DO PRIVATE(k,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
+!$acc parallel loop private(i,l,j)
 c$OMP PARALLEL DO PRIVATE(l,i)
       do j=1,jj
         do l=1,isp(j)
@@ -162,10 +169,12 @@ c$OMP PARALLEL DO PRIVATE(l,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
 c --- initialize  uja,ujb  at points located upstream and downstream (in
 c --- i-direction) of p-points.
 c
+!$acc parallel loop private(i,l,j)
 c$OMP PARALLEL DO PRIVATE(l,i)
       do j=1,jj
         do l=1,isp(j)
@@ -176,13 +185,17 @@ c$OMP PARALLEL DO PRIVATE(l,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
+!$acc update self (uja,ujb)
       call xctilr(uja,    1,   1, nbdy,nbdy, halo_us)
       call xctilr(ujb,    1,   1, nbdy,nbdy, halo_us)
+!$acc update device(uja,ujb)
 c
 c --- initialize  via,vib  at points located upstream and downstream (in
 c --- j-direction) of p-points.
 c
+!$acc parallel loop private(i,l,j)
 c$OMP PARALLEL DO PRIVATE(l,j)
       do i=1,ii
         do l=1,jsp(i)
@@ -193,6 +206,8 @@ c$OMP PARALLEL DO PRIVATE(l,j)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
+!$acc end data
 c
       call xctilr(via,    1,   1, nbdy,nbdy, halo_vs)
       call xctilr(vib,    1,   1, nbdy,nbdy, halo_vs)
@@ -228,6 +243,20 @@ c
      .     dpxy,dpia,dpib,dpja,dpjb,vsc2a,vsc2b,vsc4a,vsc4b,q,botstr,pgf
       integer i,j,k,l,kn,km,kan
 c
+!$acc data create(pbotl,ptopl,ubot,vbot,ubbl,q,dl2u,dl2v)
+!$acc& copy(isu,isv,ubcors_p,vbcors_p,isp,ifp,ilp,tsfac,dpu,dpv,ilv)
+!$acc& create(drag,ubrhs,vbrhs,stress,dpmx,vsc2,vsc4,vort,wgtia,wgtib)
+!$acc& create(wgtja,wgtjb,dl2u,dl2uja,dl2ujb,dl2v,dl2via,dl2vib,ke)
+!$acc& create( uh_min,uh_max,vh_min,vh_max,cau,cav,uflux1,vflux1)
+!$acc& copy(ifv,ifu,ilu,scuy,scvx,pbv,pbu,dp,uja,ujb,corioq,scq2i)
+!$acc& copy(vflux,uflux,ubflxs_p,vbflxs_p,via,vib,scp2i,utotn,vtotn)
+!$acc& copy(pv,pu,scp2,scv2,dpuold,dpvold,u,v,uflux2,vflux2,ub,vb)
+!$acc& copy(umax,vmax,pbv_p,pbu_p,potvor,iu,difmxq,ifq,vtotm,scqy)
+!$acc& copy(scpx,defor2,isq,scpy,tauy,taux,pgfy,pgfxo,scvy,utotm)
+!$acc& copy(ilq,difmxp,dpvor,jlv,jfv,iv,defor1,jsv,scux,vflux3)
+!$acc& copy(uflux3,pgfx,scuxi,p,jlu,jfu,difwgt,scqx,pgfyo,jsu)
+!$acc& copy(ustarb,scvyi,scu2,absvor,util1,util2)
+!$acc& create(cutoff,thkbop,tsfac,dt1inv)
       cutoff=onem
       thkbop=thkbot*onem
       tsfac=dlt/delt1
@@ -240,6 +269,9 @@ c
         vh_max=0.
       endif
 c
+!$acc update device(cutoff,thkbop,tsfac,dt1inv
+!$acc& ,uh_min,uh_max,vh_min,vh_max)
+!$acc parallel loop private(k,km,l,i,j)
 c$OMP PARALLEL DO PRIVATE(k,km,l,i)
       do j=-1,jj+2
         do k=1,kk
@@ -252,10 +284,12 @@ c$OMP PARALLEL DO PRIVATE(k,km,l,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
 c --- bottom drag (standard bulk formula)
 c
 c$OMP PARALLEL DO PRIVATE(l,i,k,kn,pbotl,ptopl,ubot,vbot,ubbl,q)
+!$acc parallel loop private(j,l,i,k,kn,pbotl,ptopl,ubot,vbot,ubbl,q)
       do j=0,jj
         do l=1,isp(j)
 c
@@ -293,12 +327,14 @@ c
 c
         enddo
       enddo
+!$acc end parallel loop
 c$OMP END PARALLEL DO
 c
 c --- store r.h.s. of barotropic u/v eqn. in -ubrhs,vbrhs-
 c --- store wind forcing in -stresx,stresy-
 c
 c$OMP PARALLEL DO PRIVATE(l,i)
+!$acc parallel loop private(i,j,l)
       do j=1,jj
         do l=1,isu(j)
         do i=max(1,ifu(j,l)),min(ii,ilu(j,l))
@@ -311,8 +347,10 @@ c$OMP PARALLEL DO PRIVATE(l,i)
         enddo
         enddo
       enddo
+!$acc end parallel loop
 c$OMP END PARALLEL DO
 c
+!$acc parallel loop private(i,j)
 c$OMP PARALLEL DO PRIVATE(i)
       do j=0,jj+1
         do i=0,ii+1
@@ -321,9 +359,12 @@ c$OMP PARALLEL DO PRIVATE(i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
+
       do k=1,kk
         km=k+mm
+!$acc parallel loop private(i,j,l) firstprivate(k,km)
 c$OMP PARALLEL DO PRIVATE(l,i)
         do j=-1,jj+2
           do l=1,isu(j)
@@ -338,9 +379,12 @@ c$OMP PARALLEL DO PRIVATE(l,i)
           enddo
         enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
       enddo
 c
+!$acc update self (difwgt)
       call xctilr(difwgt,  1,1, 2,2, halo_ps)
+!$acc update device (difwgt)
 c
 c$OMP PARALLEL DO PRIVATE(
 c$OMP+ km,kn,j,i,l,dpmx,wgtja,wgtjb,wgtia,wgtib,vort,potvor,defor1,
@@ -351,6 +395,14 @@ c$OMP+ botstr,pgf,vflux1)
 c$OMP+FIRSTPRIVATE(
 c$OMP+ defor2,utotm,utotn,uflux,vtotm,vtotn,vflux,uja,ujb,dl2u,via,vib,
 c$OMP+ dl2v,uh_min,uh_max,vh_min,vh_max,uflux2,uflux3,vflux2,vflux3)
+!$acc parallel loop
+!$acc& private(k,km,kn,j,i,l,dpmx,wgtja,wgtjb,wgtia,wgtib,vort,potvor,
+!$acc& dl2uja,dl2ujb,dl2via,dl2vib,ke,up,um,vp,vm,up2,um2,vp2,vm2,uhc,
+!$acc& uhm,vhc,vhm,cau,cav,temp1,temp2,q,deform,vsc2,vsc4,dpxy,dpja,
+!$acc& dpjb,dpia,dpib,vsc2a,vsc2b,vsc4a,vsc4b,stress,ptopl,pbotl,uflux1,
+!$acc& botstr,pgf,vflux1,defor1,defor2,utotm,utotn,uflux,vflux,
+!$acc& uja,ujb,dl2u,via,vib,vtotm,vtotn,
+!$acc& dl2v,uh_min,uh_max,vh_min,vh_max,uflux2,uflux3,vflux2,vflux3)
       do k=1,kk
         km=k+mm
         kn=k+nn
@@ -826,11 +878,11 @@ c
 c
         else
           if (mnproc.eq.1) then
-            write (lp,'(3a)') ' mommth=',trim(mommth),
-     .                        ' is unsupported!'
+!FOR GPU            write (lp,'(3a)') ' mommth=',trim(mommth),
+!FOR GPU    .                        ' is unsupported!'
           endif
-          call xcstop('(momtum)')
-                 stop '(momtum)'
+!FOR GPU          call xcstop('(momtum)')
+!FOR GPU                 stop '(momtum)'
         endif
 c
 c --- - ----------
@@ -1136,6 +1188,7 @@ c
         enddo
 c
       enddo
+!$acc end parallel loop
 c$OMP END PARALLEL DO
 c
 c --- substitute depth-weighted averages for (u,v) at massless grid points.
@@ -1143,6 +1196,7 @@ c --- (scan layers in top-down direction to save time.)
 c --- extract barotropic velocities generated during most recent baroclinic
 c --- time step and use them to force barotropic flow field.
 c
+!$acc parallel loop private(l,i,k,km,kn,kan,q,j)
 c$OMP PARALLEL DO PRIVATE(l,i,k,km,kn,kan,q)
       do j=1,jj
 c
@@ -1189,6 +1243,7 @@ c
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
 c --- time smoothing of -u,v- fields  (part 2)
 c
@@ -1196,6 +1251,7 @@ c
         km=k+mm
         kn=k+nn
 c
+!$acc parallel loop private(i,j,l) firstprivate(k,km,kn)
 c$OMP PARALLEL DO PRIVATE(l,i)
         do j=1,jj
           do l=1,isu(j)
@@ -1208,7 +1264,9 @@ c$OMP PARALLEL DO PRIVATE(l,i)
           enddo
         enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
+!$acc parallel loop private(i,j,l)
 c$OMP PARALLEL DO PRIVATE(l,i)
         do j=1,jj
           do l=1,isv(j)
@@ -1221,9 +1279,11 @@ c$OMP PARALLEL DO PRIVATE(l,i)
           enddo
         enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
       enddo
 c
+!$acc parallel loop private(l,i,j)
 c$OMP PARALLEL DO PRIVATE(l,i)
       do j=1,jj
         do l=1,isu(j)
@@ -1238,10 +1298,12 @@ c$OMP PARALLEL DO PRIVATE(l,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
 c --- store 'old' interface pressures in -pu,pv- (to be used later for
 c --- momentum redistribution)
 c
+!$acc parallel loop private(j,k,kn,l,i)
 c$OMP PARALLEL DO PRIVATE(k,kn,l,i)
       do j=1,jj
         do k=1,kk
@@ -1259,6 +1321,8 @@ c$OMP PARALLEL DO PRIVATE(k,kn,l,i)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
+!$acc end data
 c
       if (csdiag) then
         if (mnproc.eq.1) then

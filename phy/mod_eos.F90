@@ -75,6 +75,13 @@ module mod_eos
              inieos, rho, alp, sig, sig0, dsigdt, dsigdt0, dsigds, dsigds0, &
              tofsig, sofsig, p_alpha, p_p_alpha, delphi
 
+!$acc declare copyin(a11,a12,a13,a14,a15,a16,b11,b12,b13 &
+!$acc&    ,a21,a22,a23,a24,a25,a26,b21,b22,b23 &
+!$acc&    ,pref) create(ap11,ap12,ap13,ap14,ap15,ap16 &
+!$acc&    ,ap21,ap22,ap23,ap24,ap25,ap26 &
+!$acc&    ,ap110,ap120,ap130,ap140,ap150,ap160 &
+!$acc&    ,ap210,ap220,ap230,ap240,ap250,ap260 &
+!$acc&    ,atf,btf,ctf)
 contains
 
    subroutine inieos
@@ -148,13 +155,18 @@ contains
                    stop '(inieos)'
       end select
 
+!$acc update device(ap11,ap12,ap13,ap14,ap15,ap16 &
+!$acc&    ,ap21,ap22,ap23,ap24,ap25,ap26 &
+!$acc&    ,ap110,ap120,ap130,ap140,ap150,ap160 &
+!$acc&    ,ap210,ap220,ap230,ap240,ap250,ap260 &
+!$acc&    ,atf,btf,ctf)
    end subroutine inieos
 
    pure real(r8) function rho(p, th, s)
    ! ---------------------------------------------------------------------------
    ! In situ density [g cm-3].
    ! ---------------------------------------------------------------------------
-
+!$acc routine
       real(r8), intent(in) :: &
          p,    & ! Pressure [g cm-1 s-2].
          th,   & ! Potental temperature [deg C].
@@ -188,7 +200,7 @@ contains
    ! ---------------------------------------------------------------------------
    ! Potential density in sigma units [g cm-3].
    ! ---------------------------------------------------------------------------
-
+!$acc routine
       real(r8), intent(in) :: &
          th,   & ! Potental temperature [deg C].
          s       ! Salinity [g kg-1].
@@ -218,7 +230,7 @@ contains
    ! Derivative of potential density with respect to potential temperature
    ! [g cm-3 K-1].
    ! ---------------------------------------------------------------------------
-
+!$acc routine
       real(r8), intent(in) :: &
          th,   & ! Potental temperature [deg C].
          s       ! Salinity [g kg-1].
@@ -258,7 +270,7 @@ contains
    ! ---------------------------------------------------------------------------
    ! Derivative of potential density with respect to salinity [kg cm-3].
    ! ---------------------------------------------------------------------------
-
+!$acc routine
       real(r8), intent(in) :: &
          th,   & ! Potental temperature [deg C].
          s       ! Salinity [g kg-1].
@@ -319,7 +331,7 @@ contains
    ! Salinity as function of potential density and potential temperature
    ! [g kg-1].
    ! ---------------------------------------------------------------------------
-
+!$acc routine
       real(r8), intent(in) :: &
          sg,   & ! Potental density [g cm-3].
          th      ! Potential temperature [deg C].

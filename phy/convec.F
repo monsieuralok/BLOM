@@ -24,10 +24,14 @@ c --- Remove static instabilitites between the mixed layer and interior
 c --- layers
 c --- ------------------------------------------------------------------
 c
+#ifdef _OPENACC
+      use openacc
+#endif
       use mod_constants, only: epsil
       use mod_xc
       use mod_grid, only: sigmar
       use mod_eos, only: rho, sig, sofsig
+!$acc routine (sofsig,sig,rho)
       use mod_state, only: u, v, dp, dpu, dpv, temp, saln, sigma,
      .                     p, pu, pv, kfpla 
       use mod_checksum, only: csdiag, chksummsk
@@ -52,6 +56,17 @@ c
 c
       integer niter
 c
+!$acc data copy(isp,ifp,ilp,isu,ifu,ilu,isv,ifv,ilv)
+!$acc& copy(kfpla,temp,p,sigmar)
+!$acc& copy(saln,sigma,dp,pv,u)
+!$acc& copy(v,pu)
+!$acc& copy(dpv,dpu,trc) create(ttrc,trdps)
+!$acc& create(ttem,ssal,delp,dens,densr,uo,un,po,pn)
+      print*, 'I enter in CONVEC1',JJ
+!$acc parallel loop private(l,i,k,kn,ttem,ssal,delp,dens,densr,dps
+!$acc& ,kfpl,kfplo,tdps,sdps,q,ttmp,stmp,dtmp,done,niter,kmix,
+!$acc& nt,ttrc,trdps)
+
 c$OMP PARALLEL DO PRIVATE(
 c$OMP+ l,i,k,kn,ttem,ssal,delp,dens,densr,dps,kfpl,kfplo,tdps,sdps,q,
 c$OMP+ ttmp,stmp,dtmp,done,niter,kmix
@@ -289,13 +304,17 @@ c
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
 c
 c --- ------------------------------------------------------------------
 c --- Redistribute momentum
 c --- ------------------------------------------------------------------
 c
+!$acc update self (p)
       call xctilr(p, 1,kk+1, 1,1, halo_ps)
+!$acc update device (p)
 c
+!$acc loop private(l,i,k,kn,uo,po,pn,ko,un,udpn)
 c$OMP PARALLEL DO PRIVATE(l,i,k,kn,uo,po,pn,ko,un,udpn)
       do j=1,jj
 c
@@ -372,7 +391,9 @@ c
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end loop
 c
+!$acc parallel loop private(k,kn,l,i,q)
 c$OMP PARALLEL DO PRIVATE(k,kn,l,i,q)
       do j=1,jj
         do k=1,kk
@@ -396,6 +417,8 @@ c$OMP PARALLEL DO PRIVATE(k,kn,l,i,q)
         enddo
       enddo
 c$OMP END PARALLEL DO
+!$acc end parallel loop
+!$acc end data
 c     do j=1,jj
 c       do l=1,isu(j)
 c       do i=max(1,ifu(j,l)),min(ii,ilu(j,l))
