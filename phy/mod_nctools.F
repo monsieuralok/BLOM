@@ -68,6 +68,7 @@ c
 c    ncerro        - displays error massage
 c    ncsevl        - evaluates strings with deliminators ' ',':' and '-'
 c    ncinqv        - inquires if variable exits 
+c    some more description
 c
 c Revision history:
 c    may2008       - switched from F77-API to F90-API
